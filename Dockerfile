@@ -20,6 +20,6 @@ USER appuser
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD-SHELL python -c "import json, os, urllib.request; port=os.environ.get('PORT','8000'); data=json.load(urllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=3)); raise SystemExit(0 if data.get('status') == 'ok' else 1)"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD python -c "import json, os, urllib.request; port=os.environ.get('PORT','8000'); url='http://127.0.0.1:' + port + '/healthz'; data=json.load(urllib.request.urlopen(url, timeout=3)); raise SystemExit(0 if data.get('status') == 'ok' else 1)"
 
 CMD ["sh", "-c", "python -m uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-8000}"]
