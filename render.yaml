@@ -18,6 +18,10 @@ services:
         value: "1"
       - key: PAPERSHIELD_HOSTED_FREE_RUN_LIMIT
         value: "3"
+      - key: PAPERSHIELD_LLM_TIMEOUT
+        value: "25"
+      - key: PAPERSHIELD_LLM_MAX_RETRIES
+        value: "0"
       - key: PAPERSHIELD_PROMPT_PROFILE
         value: default
       - key: PAPERSHIELD_MAX_UPLOAD_BYTES

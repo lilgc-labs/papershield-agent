@@ -14,6 +14,8 @@ from web.security import provider_config_enabled, validate_provider_base_url
 APP_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = APP_ROOT / "config" / "provider.local.json"
 ALLOWED_PROVIDERS = {"mock", "openai", "anthropic", "openai-compatible", "compatible"}
+HOSTED_MAX_TIMEOUT_SECONDS = 25
+HOSTED_MAX_RETRIES = 0
 
 
 @dataclass
@@ -34,7 +36,7 @@ class WebProviderConfig:
     base_url: str = ""
     model: str = "mock"
     prompt_profile: str = "default"
-    timeout: int = 120
+    timeout: int = 25
     max_retries: int = 0
 
 
@@ -117,7 +119,7 @@ def save_provider_config(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def current_provider_settings() -> LLMSettings:
-    config = _current_config()
+    config = _effective_hosted_config(_current_config())
     api_key = _runtime_api_key or _api_key_from_env(config.provider)
     return LLMSettings(
         provider=config.provider,
@@ -171,8 +173,8 @@ def _config_from_payload(payload: dict[str, Any]) -> WebProviderConfig:
         base_url=base_url,
         model=model,
         prompt_profile=prompt_profile,
-        timeout=_bounded_int(payload.get("timeout"), 120, minimum=1, maximum=300),
-        max_retries=_bounded_int(payload.get("max_retries"), 0, minimum=0, maximum=3),
+        timeout=_bounded_int(payload.get("timeout"), 25, minimum=1, maximum=HOSTED_MAX_TIMEOUT_SECONDS),
+        max_retries=_bounded_int(payload.get("max_retries"), 0, minimum=0, maximum=HOSTED_MAX_RETRIES),
     )
 
 
@@ -192,8 +194,8 @@ def _config_from_env() -> WebProviderConfig:
         base_url=base_url,
         model=model,
         prompt_profile=prompt_profile,
-        timeout=settings.timeout,
-        max_retries=settings.max_retries,
+        timeout=min(settings.timeout, HOSTED_MAX_TIMEOUT_SECONDS),
+        max_retries=min(settings.max_retries, HOSTED_MAX_RETRIES),
     )
 
 
@@ -245,6 +247,7 @@ def _config_path() -> Path:
 
 
 def _sanitized_payload(config: WebProviderConfig) -> dict[str, Any]:
+    config = _effective_hosted_config(config)
     api_key_present = bool(_runtime_api_key or _api_key_from_env(config.provider))
     base_url_configured = bool(config.base_url)
     configured = config.provider == "mock" or (api_key_present and (config.provider != "openai-compatible" or base_url_configured))
@@ -255,6 +258,18 @@ def _sanitized_payload(config: WebProviderConfig) -> dict[str, Any]:
         "configured": configured,
         "provider_config_enabled": provider_config_enabled(),
     }
+
+
+def _effective_hosted_config(config: WebProviderConfig) -> WebProviderConfig:
+    return WebProviderConfig(
+        preset_id=config.preset_id,
+        provider=config.provider,
+        base_url=config.base_url,
+        model=config.model,
+        prompt_profile=config.prompt_profile,
+        timeout=min(config.timeout, HOSTED_MAX_TIMEOUT_SECONDS),
+        max_retries=min(config.max_retries, HOSTED_MAX_RETRIES),
+    )
 
 
 def _api_key_from_env(provider: str) -> str | None:

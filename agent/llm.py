@@ -24,8 +24,8 @@ class LLMSettings:
     base_url: str | None = None
     api_key: str | None = None
     temperature: float = 0.2
-    timeout: int = 60
-    max_retries: int = 1
+    timeout: int = 25
+    max_retries: int = 0
 
 
 class ProviderConfigError(RuntimeError):
@@ -355,8 +355,8 @@ def settings_from_env() -> LLMSettings:
         model=model,
         base_url=base_url,
         api_key=api_key,
-        timeout=_env_int("PAPERSHIELD_LLM_TIMEOUT", 60),
-        max_retries=_env_int("PAPERSHIELD_LLM_MAX_RETRIES", 1),
+        timeout=_env_int("PAPERSHIELD_LLM_TIMEOUT", 25),
+        max_retries=_env_int("PAPERSHIELD_LLM_MAX_RETRIES", 0),
     )
 
 

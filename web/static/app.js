@@ -603,7 +603,7 @@ function appendUserProviderFormData(formData, mode) {
   formData.set("user_model", providerModelInput.value.trim());
   formData.set("user_api_key", providerApiKeyInput.value.trim());
   formData.set("user_prompt_profile", providerProfileSelect.value || "default");
-  formData.set("user_timeout", providerTimeoutInput.value || "120");
+  formData.set("user_timeout", providerTimeoutInput.value || "25");
   formData.set("user_max_retries", providerMaxRetriesInput.value || "0");
 }
 
@@ -780,7 +780,7 @@ function fillProviderForm(config) {
   providerModelInput.value = config.model || "";
   providerApiKeyInput.value = "";
   providerProfileSelect.value = config.prompt_profile || "default";
-  providerTimeoutInput.value = config.timeout || 120;
+  providerTimeoutInput.value = config.timeout || 25;
   providerMaxRetriesInput.value = Number.isFinite(config.max_retries) ? config.max_retries : 0;
   if (!providerModeTouched) {
     providerModeSetting.value = hostedModelAvailable() ? "hosted" : (config.provider === "mock" ? "mock" : "user");
@@ -864,7 +864,7 @@ function readProviderForm() {
       base_url: "",
       model: "mock",
       prompt_profile: providerProfileSelect.value || "default",
-      timeout: toBoundedInt(providerTimeoutInput.value, 120, 1),
+      timeout: toBoundedInt(providerTimeoutInput.value, 25, 1),
       max_retries: 0,
     };
   }
@@ -874,7 +874,7 @@ function readProviderForm() {
     base_url: providerBaseUrlInput.value.trim(),
     model: providerModelInput.value.trim(),
     prompt_profile: providerProfileSelect.value || "default",
-    timeout: toBoundedInt(providerTimeoutInput.value, 120, 1),
+    timeout: toBoundedInt(providerTimeoutInput.value, 25, 1),
     max_retries: toBoundedInt(providerMaxRetriesInput.value, 0, 0),
   };
 }

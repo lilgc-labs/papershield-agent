@@ -1,6 +1,7 @@
 import io
 import json
 import os
+from pathlib import Path
 import tempfile
 import unittest
 import warnings
@@ -54,7 +55,7 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["status"], "ok")
-        self.assertEqual(payload["version"], "1.14")
+        self.assertEqual(payload["version"], "1.15")
         self.assertEqual(payload["prompt_profile"], "research_writing_zh_word_v1")
         self.assertIn(payload["provider"], {"openai", "mock", "anthropic"})
         self.assertEqual(payload["compliance_mode"], "local-demo")
@@ -74,6 +75,13 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("admin_token_required", payload)
         self.assertIn("provider_control_token_required", payload)
         self.assertIn("provider_base_url_policy", payload)
+
+    def test_optimize_endpoint_runs_blocking_workflow_in_threadpool(self):
+        source = (Path(__file__).resolve().parents[1] / "web" / "app.py").read_text(encoding="utf-8")
+
+        self.assertIn("from starlette.concurrency import run_in_threadpool", source)
+        self.assertIn("state = await run_in_threadpool(", source)
+        self.assertIn("optimize_text,", source)
 
     def test_workflow_topology_endpoint_reports_langgraph_nodes(self):
         response = self.client.get("/api/workflow/topology")
@@ -98,6 +106,8 @@ class WebAppTests(unittest.TestCase):
             "PAPERSHIELD_LLM_PROVIDER": "openai",
             "PAPERSHIELD_LLM_MODEL": "demo-model",
             "OPENAI_API_KEY": "secret-value",
+            "PAPERSHIELD_LLM_TIMEOUT": "60",
+            "PAPERSHIELD_LLM_MAX_RETRIES": "3",
         }
         with patch.dict(os.environ, env, clear=True):
             reset_provider_runtime_for_tests()
@@ -109,6 +119,8 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(payload["model"], "demo-model")
         self.assertTrue(payload["configured"])
         self.assertTrue(payload["api_key_present"])
+        self.assertEqual(payload["timeout"], 25)
+        self.assertEqual(payload["max_retries"], 0)
         self.assertNotIn("secret-value", response.text)
 
     def test_provider_presets_include_mainland_and_global_models(self):
@@ -703,7 +715,8 @@ class WebAppTests(unittest.TestCase):
 
         self.assertEqual(status["provider"], "openai-compatible")
         self.assertEqual(status["model"], "qwen-plus")
-        self.assertEqual(status["timeout"], 90)
+        self.assertEqual(status["timeout"], 25)
+        self.assertEqual(status["max_retries"], 0)
         self.assertFalse(status["api_key_present"])
         self.assertNotIn("env-secret", response.text)
 
@@ -1067,8 +1080,8 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("导出 Word", html)
         self.assertIn("PaperShield 学术稿件智能审阅平台", html)
         self.assertIn('rel="icon"', html)
-        self.assertIn("/static/styles.css?v=1.14", html)
-        self.assertIn("/static/app.js?v=1.14", html)
+        self.assertIn("/static/styles.css?v=1.15", html)
+        self.assertIn("/static/app.js?v=1.15", html)
         self.assertIn("面向一般社科领域", html)
         self.assertIn("论证清晰度、表达自然度、术语一致性与引文可核查性", html)
         self.assertIn("一般社科", html)

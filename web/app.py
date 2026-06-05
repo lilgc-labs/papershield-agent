@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from agent.graph import optimize_text, workflow_topology
 from agent.llm import (
@@ -48,7 +49,7 @@ from web.security import (
 
 
 WEB_ROOT = Path(__file__).resolve().parent
-APP_VERSION = "1.14"
+APP_VERSION = "1.15"
 _hosted_usage: dict[str, int] = {}
 
 
@@ -151,7 +152,7 @@ def create_app() -> FastAPI:
         user_base_url: str = Form(default=""),
         user_model: str = Form(default=""),
         user_api_key: str = Form(default=""),
-        user_timeout: int = Form(default=120),
+        user_timeout: int = Form(default=25),
         user_max_retries: int = Form(default=0),
     ) -> dict:
         normalized = provider_mode.strip().lower()
@@ -225,7 +226,7 @@ def create_app() -> FastAPI:
         user_model: str = Form(default=""),
         user_api_key: str = Form(default=""),
         user_prompt_profile: str = Form(default=""),
-        user_timeout: int = Form(default=120),
+        user_timeout: int = Form(default=25),
         user_max_retries: int = Form(default=0),
         file: UploadFile | None = File(default=None),
     ) -> dict:
@@ -278,7 +279,8 @@ def create_app() -> FastAPI:
             hosted_usage = _consume_hosted_usage(request)
 
         try:
-            state = optimize_text(
+            state = await run_in_threadpool(
+                optimize_text,
                 raw_text,
                 domain,
                 llm_client=llm,
@@ -446,7 +448,7 @@ def _client_for_provider_mode(
     user_base_url: str = "",
     user_model: str = "",
     user_api_key: str = "",
-    user_timeout: int = 120,
+    user_timeout: int = 25,
     user_max_retries: int = 0,
 ):
     normalized = provider_mode.strip().lower()
@@ -460,7 +462,7 @@ def _client_for_provider_mode(
             model=(user_model or "configured-model").strip(),
             base_url=(user_base_url or "").strip() or None,
             api_key=(user_api_key or "").strip(),
-            timeout=_bounded_int(user_timeout, 120, minimum=1, maximum=300),
+            timeout=_bounded_int(user_timeout, 25, minimum=1, maximum=300),
             max_retries=_bounded_int(user_max_retries, 0, minimum=0, maximum=3),
         )
         return client_from_settings(settings)
@@ -475,7 +477,7 @@ def _traced_client_for_provider_mode(
     user_base_url: str = "",
     user_model: str = "",
     user_api_key: str = "",
-    user_timeout: int = 120,
+    user_timeout: int = 25,
     user_max_retries: int = 0,
 ) -> tuple[TracingLLMClient, TracingLLMClient]:
     normalized = provider_mode.strip().lower()
