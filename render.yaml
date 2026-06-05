@@ -7,9 +7,15 @@ services:
     healthCheckPath: /healthz
     envVars:
       - key: PAPERSHIELD_LLM_PROVIDER
-        value: mock
+        value: openai-compatible
+      - key: PAPERSHIELD_LLM_BASE_URL
+        sync: false
+      - key: PAPERSHIELD_LLM_MODEL
+        sync: false
+      - key: PAPERSHIELD_API_KEY
+        sync: false
       - key: PAPERSHIELD_PROVIDER_CONFIG_ENABLED
-        value: "0"
+        value: "1"
       - key: PAPERSHIELD_ADMIN_TOKEN
         sync: false
       - key: PAPERSHIELD_CONFIG_ADMIN_TOKEN

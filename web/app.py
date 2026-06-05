@@ -49,7 +49,7 @@ from web.security import (
 
 
 WEB_ROOT = Path(__file__).resolve().parent
-APP_VERSION = "1.15"
+APP_VERSION = "1.16"
 _hosted_usage: dict[str, int] = {}
 
 
