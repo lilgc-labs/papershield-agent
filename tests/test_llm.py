@@ -148,6 +148,13 @@ class LLMTests(unittest.TestCase):
         self.assertEqual(settings.max_retries, 3)
         self.assertEqual(settings.model, "mock")
 
+    def test_settings_from_env_uses_stable_model_call_defaults(self):
+        with patch.dict(os.environ, {"PAPERSHIELD_LLM_PROVIDER": "mock"}, clear=True):
+            settings = settings_from_env()
+
+        self.assertEqual(settings.timeout, 45)
+        self.assertEqual(settings.max_retries, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

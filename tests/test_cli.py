@@ -100,6 +100,53 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["workflow"]["nodes"][0], "parse_document")
         self.assertEqual(payload["workflow"]["nodes"][-1], "assemble_output")
 
+    def test_analysis_only_cli_uses_provider_for_article_summary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "analysis.txt"
+            source.write_text("此外，数据安全问题需要完善[1]。", encoding="utf-8")
+
+            result = self.run_cli(
+                "optimize",
+                str(source),
+                "--domain",
+                "law",
+                "--output",
+                str(tmp_path),
+                "--analysis-only",
+                "--report-format",
+                "json",
+                env={"PAPERSHIELD_LLM_PROVIDER": "mock"},
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads((tmp_path / "analysis_report.json").read_text(encoding="utf-8"))
+            self.assertTrue(payload["analysis_only"])
+            self.assertEqual(payload["paragraphs"][0]["status"], "analysis_only")
+            self.assertIn("analysis_summary", payload)
+            self.assertTrue(payload["analysis_summary"]["overview"])
+            self.assertFalse(payload["provider_error"]["failed"])
+
+    def test_analysis_only_cli_does_not_silently_replace_configured_provider_with_mock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "analysis.txt"
+            source.write_text("此外，数据安全问题需要完善[1]。", encoding="utf-8")
+
+            result = self.run_cli(
+                "optimize",
+                str(source),
+                "--domain",
+                "law",
+                "--output",
+                str(tmp_path),
+                "--analysis-only",
+                env={"PAPERSHIELD_LLM_PROVIDER": "openai"},
+            )
+
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("Missing API key", result.stderr)
+
     def test_optimize_report_format_json_writes_structured_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

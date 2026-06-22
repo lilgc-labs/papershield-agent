@@ -314,6 +314,7 @@ def _analysis_summary_lines(summary: dict) -> list[str]:
 def _looks_like_provider_warning(warning: str) -> bool:
     lowered = warning.lower()
     markers = [
+        "document analysis failed",
         "paragraph processing failed",
         "llm provider",
         "provider request",

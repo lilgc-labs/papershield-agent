@@ -54,9 +54,7 @@ const CUSTOM_SELECT_SOURCES = [
 ];
 const WORKBENCH_WIDTH_KEY = "papershield.workbench.leftWidth.v1";
 const ADMIN_TOKEN_STORAGE_KEY = "papershield.adminToken.v1";
-const HOSTED_CLIENT_ID_STORAGE_KEY = "papershield.hostedClientId.v1";
 const USER_NOTICE_ACCEPTED_KEY = "papershield.userNotice.accepted.v1";
-const DEFAULT_HOSTED_FREE_RUN_LIMIT = 3;
 const DEFAULT_CONTROL_WIDTH = 340;
 const MIN_CONTROL_WIDTH = 292;
 const MAX_CONTROL_WIDTH = 520;
@@ -159,7 +157,6 @@ let paragraphChoices = new Map();
 let providerPresets = new Map();
 let currentProviderConfig = null;
 let runtimePolicy = null;
-let hostedUsage = null;
 let providerModeTouched = false;
 let providerControlAuthenticated = false;
 let hostedAccessAuthenticated = hasAdminToken();
@@ -210,7 +207,7 @@ form.addEventListener("submit", async (event) => {
     }
     renderResult(payload);
     if (payload.provider_error && payload.provider_error.failed) {
-      const message = payload.provider_error.all_fallback ? "本地模型调用失败，已保留原文" : "模型调用部分失败，请检查段落警告";
+      const message = payload.provider_error.all_fallback ? "模型调用失败，已保留原文" : "模型调用部分失败，请检查段落警告";
       setStatus(message, true);
       setProviderAlert(`${message}。${payload.provider_error.message || "请检查模型设置。"}`, true);
       activateArtifactTab("evidence");
@@ -322,7 +319,7 @@ checkProviderButton.addEventListener("click", async () => {
     }
     setProviderStatus(payload.message || "连接可用", "success");
     if (runProviderMode === "hosted") {
-      setProviderStatus(`托管额度剩余 ${hostedRunRemaining()} 次`, "success");
+      setProviderStatus("托管额度不限次数", "success");
     }
     setStatus("模型连接可用", false);
   } catch (error) {
@@ -475,13 +472,12 @@ function applyRuntimePolicy(policy) {
   }
   if (hostedLocked) {
     setProviderStatus("等待登录", "locked");
-    const limit = hostedRunLimit();
-    setProviderAlert(`输入访问密匙后可使用 ${limit} 次托管免费润色；也可以切换到自备模型参数。`, false);
+    setProviderAlert("输入访问密匙后可使用托管模型；也可以切换到自备模型参数。", false);
     setProviderAuthStatus("登录后可使用托管免费额度。", "locked");
     return;
   }
   if (requiresLogin && loggedIn) {
-    setProviderAuthStatus(`已登录，可使用托管免费额度。剩余 ${hostedRunRemaining()} 次。`, "success");
+    setProviderAuthStatus("已登录，可使用托管免费额度，不设本地次数限制。", "success");
     return;
   }
   if (requiresLogin && !loggedIn) {
@@ -517,7 +513,7 @@ async function loginProviderConfig() {
     providerControlAuthenticated = Boolean(payload.provider_control_authenticated);
     hostedAccessAuthenticated = Boolean(payload.hosted_access_authenticated);
     if (payload.admin_token_required) {
-      setProviderAuthStatus(`已登录，可使用托管免费额度。剩余 ${hostedRunRemaining()} 次。`, "success");
+      setProviderAuthStatus("已登录，可使用托管免费额度，不设本地次数限制。", "success");
       setStatus("托管免费额度已解锁", false);
     } else {
       setProviderAuthStatus("当前环境无需访问口令。", "neutral");
@@ -603,33 +599,8 @@ function appendUserProviderFormData(formData, mode) {
   formData.set("user_model", providerModelInput.value.trim());
   formData.set("user_api_key", providerApiKeyInput.value.trim());
   formData.set("user_prompt_profile", providerProfileSelect.value || "default");
-  formData.set("user_timeout", providerTimeoutInput.value || "25");
-  formData.set("user_max_retries", providerMaxRetriesInput.value || "0");
-}
-
-function hostedRunLimit() {
-  const value = runtimePolicy && Number(runtimePolicy.hosted_free_run_limit);
-  return Number.isFinite(value) ? value : DEFAULT_HOSTED_FREE_RUN_LIMIT;
-}
-
-function hostedRunRemaining() {
-  if (hostedUsage && Number.isFinite(hostedUsage.remaining)) {
-    return hostedUsage.remaining;
-  }
-  return hostedRunLimit();
-}
-
-function updateHostedUsage(usage) {
-  if (!usage || typeof usage !== "object") return;
-  hostedUsage = {
-    limit: Number.isFinite(Number(usage.limit)) ? Number(usage.limit) : hostedRunLimit(),
-    used: Number.isFinite(Number(usage.used)) ? Number(usage.used) : 0,
-    remaining: Number.isFinite(Number(usage.remaining)) ? Number(usage.remaining) : 0,
-  };
-  setProviderStatus(`托管额度剩余 ${hostedUsage.remaining} 次`, hostedUsage.remaining > 0 ? "success" : "warning");
-  if (runtimePolicy && runtimePolicy.admin_token_required && hostedAccessAuthenticated) {
-    setProviderAuthStatus(`已登录，可使用托管免费额度。剩余 ${hostedUsage.remaining} 次。`, "success");
-  }
+  formData.set("user_timeout", providerTimeoutInput.value || "45");
+  formData.set("user_max_retries", providerMaxRetriesInput.value || "1");
 }
 
 async function readJsonResponse(response, fallbackMessage = "请求失败") {
@@ -657,7 +628,6 @@ function providerAuthHeaders(tokenOverride = "") {
   if (!token) return {};
   return {
     "X-PaperShield-Admin-Token": token,
-    "X-PaperShield-Client-Id": hostedClientId(),
   };
 }
 
@@ -687,26 +657,6 @@ function clearAdminToken() {
 
 function hasAdminToken() {
   return Boolean(getAdminToken());
-}
-
-function hostedClientId() {
-  try {
-    let value = localStorage.getItem(HOSTED_CLIENT_ID_STORAGE_KEY);
-    if (!value) {
-      value = generateHostedClientId();
-      localStorage.setItem(HOSTED_CLIENT_ID_STORAGE_KEY, value);
-    }
-    return value;
-  } catch (error) {
-    return generateHostedClientId();
-  }
-}
-
-function generateHostedClientId() {
-  if (window.crypto && window.crypto.randomUUID) {
-    return window.crypto.randomUUID();
-  }
-  return `client-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function setProviderAuthStatus(message, state = "neutral") {
@@ -780,8 +730,8 @@ function fillProviderForm(config) {
   providerModelInput.value = config.model || "";
   providerApiKeyInput.value = "";
   providerProfileSelect.value = config.prompt_profile || "default";
-  providerTimeoutInput.value = config.timeout || 25;
-  providerMaxRetriesInput.value = Number.isFinite(config.max_retries) ? config.max_retries : 0;
+  providerTimeoutInput.value = config.timeout || 45;
+  providerMaxRetriesInput.value = Number.isFinite(config.max_retries) ? config.max_retries : 1;
   if (!providerModeTouched) {
     providerModeSetting.value = hostedModelAvailable() ? "hosted" : (config.provider === "mock" ? "mock" : "user");
   }
@@ -864,8 +814,8 @@ function readProviderForm() {
       base_url: "",
       model: "mock",
       prompt_profile: providerProfileSelect.value || "default",
-      timeout: toBoundedInt(providerTimeoutInput.value, 25, 1),
-      max_retries: 0,
+      timeout: toBoundedInt(providerTimeoutInput.value, 45, 1),
+      max_retries: 1,
     };
   }
   return {
@@ -874,8 +824,8 @@ function readProviderForm() {
     base_url: providerBaseUrlInput.value.trim(),
     model: providerModelInput.value.trim(),
     prompt_profile: providerProfileSelect.value || "default",
-    timeout: toBoundedInt(providerTimeoutInput.value, 25, 1),
-    max_retries: toBoundedInt(providerMaxRetriesInput.value, 0, 0),
+    timeout: toBoundedInt(providerTimeoutInput.value, 45, 1),
+    max_retries: toBoundedInt(providerMaxRetriesInput.value, 1, 0),
   };
 }
 
@@ -910,8 +860,8 @@ function syncProviderMode() {
   providerConfigForm.classList.toggle("user-mode", useUser);
   providerConfigForm.classList.toggle("mock-mode", useMock);
   if (useHosted) {
-    setProviderStatus(`托管额度剩余 ${hostedRunRemaining()} 次`, providerModeRequiresAuth(mode) ? "locked" : "success");
-    providerSummary.textContent = `当前使用：托管免费额度 · 剩余 ${hostedRunRemaining()} 次`;
+    setProviderStatus("托管额度不限次数", providerModeRequiresAuth(mode) ? "locked" : "success");
+    providerSummary.textContent = "当前使用：托管免费额度 · 不设本地次数限制";
   } else if (useUser) {
     providerSummary.textContent = "当前使用：自备模型参数";
   } else {
@@ -1272,7 +1222,7 @@ function renderRequestEstimate(paragraphCount) {
   const minimumRequests = analysisOnlyInput.checked ? 1 : Math.max(1, paragraphCount) * multiplier;
   const file = fileInput.files && fileInput.files[0];
   const fileNote = file ? "；上传文件以实际解析段落为准" : "";
-  const quotaNote = paragraphCount >= 20 ? "；长文档可能快速消耗免费额度" : "";
+  const quotaNote = paragraphCount >= 20 ? "；长文档可能增加模型等待时间" : "";
   const modeNote = analysisOnlyInput.checked ? "文章级分析" : `双层润色：${Math.max(1, paragraphCount)} 段 × ${multiplier}`;
   requestEstimate.textContent = `最低请求数估算：${minimumRequests} 次（${modeNote}）${fileNote}${quotaNote}`;
 }
@@ -1373,9 +1323,6 @@ function renderErrorState(message, payload = null) {
 
 function renderResult(payload) {
   currentPayload = payload;
-  if (payload.hosted_usage) {
-    updateHostedUsage(payload.hosted_usage);
-  }
   paragraphChoices = new Map((payload.paragraphs || []).map((paragraph) => [
     paragraph.index,
     paragraph.status === "fallback" ? "original" : "rewritten",

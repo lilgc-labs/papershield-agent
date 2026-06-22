@@ -84,8 +84,16 @@ def optimize_file(args: argparse.Namespace) -> int:
     output_dir = Path(args.output) if args.output else input_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
     source = read_input_document(input_path, args.input_format)
-    llm = None if args.analysis_only else client_from_env()
-    state = optimize_text(source.text, args.domain, llm, source_format=source.source_format, analysis_only=args.analysis_only)
+    settings = settings_from_env()
+    llm = client_from_env()
+    state = optimize_text(
+        source.text,
+        args.domain,
+        llm,
+        source_format=source.source_format,
+        analysis_only=args.analysis_only,
+        external_call_required=settings.provider != "mock",
+    )
     state.warnings.extend(source.warnings)
 
     optimized_suffix = ".docx" if source.source_format == "docx" else ".txt"
@@ -127,7 +135,8 @@ def optimize_file(args: argparse.Namespace) -> int:
 def test_paragraph(args: argparse.Namespace) -> int:
     get_domain_config(args.domain)
     llm = client_from_env()
-    state = optimize_text(args.text, args.domain, llm)
+    settings = settings_from_env()
+    state = optimize_text(args.text, args.domain, llm, external_call_required=settings.provider != "mock")
     if args.json:
         print(json.dumps(build_report_dict(state), ensure_ascii=False, indent=2))
         return 0

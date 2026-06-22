@@ -5,7 +5,7 @@ import json
 import re
 import time
 
-from agent.llm import ExternalModelCallError, LLMClient, MockLLMClient
+from agent.llm import LLMClient, MockLLMClient
 from agent.nodes.assemble import assemble_final_text, build_report
 from agent.nodes.layer1 import rewrite_syntax
 from agent.nodes.layer2 import rewrite_lexical
@@ -119,8 +119,6 @@ def _process_paragraphs_node(workflow: dict) -> dict:
         try:
             state.analysis_summary = _analyze_document_only(state, llm)
         except Exception as exc:
-            if workflow.get("external_call_required"):
-                raise ExternalModelCallError(f"external document analysis failed: {exc}") from exc
             analysis_warning = f"document analysis failed: {exc}"
             state.warnings.append(analysis_warning)
             state.analysis_summary = _fallback_analysis_summary(state, str(exc))
@@ -348,8 +346,6 @@ def _process_paragraph(
                     warnings=warnings,
                 ))
         except Exception as exc:
-            if external_call_required:
-                raise ExternalModelCallError(f"external paragraph processing failed: {exc}") from exc
             warnings.append(f"paragraph processing failed: {exc}")
             break
         retry_count = attempt + 1

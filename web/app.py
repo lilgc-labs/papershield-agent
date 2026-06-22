@@ -12,7 +12,6 @@ from starlette.concurrency import run_in_threadpool
 
 from agent.graph import optimize_text, workflow_topology
 from agent.llm import (
-    ExternalModelCallError,
     LLMSettings,
     MockLLMClient,
     ProviderConfigError,
@@ -38,7 +37,6 @@ from web.security import (
     SlidingWindowRateLimiter,
     admin_token,
     count_paragraphs,
-    hosted_free_run_limit,
     provider_control_token,
     provider_config_enabled,
     redact_secrets,
@@ -49,8 +47,7 @@ from web.security import (
 
 
 WEB_ROOT = Path(__file__).resolve().parent
-APP_VERSION = "1.16"
-_hosted_usage: dict[str, int] = {}
+APP_VERSION = "1.17"
 
 
 def create_app() -> FastAPI:
@@ -152,8 +149,8 @@ def create_app() -> FastAPI:
         user_base_url: str = Form(default=""),
         user_model: str = Form(default=""),
         user_api_key: str = Form(default=""),
-        user_timeout: int = Form(default=25),
-        user_max_retries: int = Form(default=0),
+        user_timeout: int = Form(default=45),
+        user_max_retries: int = Form(default=1),
     ) -> dict:
         normalized = provider_mode.strip().lower()
         if normalized == "mock":
@@ -226,8 +223,8 @@ def create_app() -> FastAPI:
         user_model: str = Form(default=""),
         user_api_key: str = Form(default=""),
         user_prompt_profile: str = Form(default=""),
-        user_timeout: int = Form(default=25),
-        user_max_retries: int = Form(default=0),
+        user_timeout: int = Form(default=45),
+        user_max_retries: int = Form(default=1),
         file: UploadFile | None = File(default=None),
     ) -> dict:
         _enforce_rate_limit(request, rate_limiter, "optimize")
@@ -274,10 +271,6 @@ def create_app() -> FastAPI:
         except ProviderConfigError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-        hosted_usage = None
-        if provider_mode.lower() == "hosted":
-            hosted_usage = _consume_hosted_usage(request)
-
         try:
             state = await run_in_threadpool(
                 optimize_text,
@@ -292,18 +285,7 @@ def create_app() -> FastAPI:
             state.warnings.extend(warnings)
             payload = build_report_dict(state)
             payload["provider_trace"] = provider_trace.to_trace_payload()
-            if hosted_usage:
-                payload["hosted_usage"] = hosted_usage
             return payload
-        except ExternalModelCallError as exc:
-            return JSONResponse(
-                status_code=502,
-                content={
-                    "error": "external_model_failed",
-                    "message": f"External model workflow failed: {_safe_error_message(exc)}",
-                    "provider_trace": provider_trace.to_trace_payload(),
-                },
-            )
         except Exception as exc:
             raise HTTPException(status_code=502, detail=f"Model workflow failed: {_safe_error_message(exc)}") from exc
 
@@ -418,38 +400,14 @@ def _validate_text_limits(raw_text: str) -> None:
         raise HTTPException(status_code=413, detail=f"Too many paragraphs. Limit: {limits.max_paragraphs}.")
 
 
-def _consume_hosted_usage(request: Request) -> dict:
-    expected = admin_token()
-    if not expected:
-        raise HTTPException(status_code=403, detail="Hosted model access is not enabled for this deployment.")
-    token = request.headers.get("X-PaperShield-Admin-Token", "")
-    client_id = _hosted_client_id(request)
-    usage_key = f"{token}:{client_id}"
-    limit = hosted_free_run_limit()
-    used = _hosted_usage.get(usage_key, 0)
-    if limit and used >= limit:
-        raise HTTPException(status_code=429, detail="Free hosted model usage limit reached. Please use your own model settings.")
-    used += 1
-    _hosted_usage[usage_key] = used
-    remaining = max(limit - used, 0) if limit else 0
-    return {"limit": limit, "used": used, "remaining": remaining}
-
-
-def _hosted_client_id(request: Request) -> str:
-    value = request.headers.get("X-PaperShield-Client-Id", "").strip()
-    if value:
-        return value[:128]
-    return request.client.host if request.client else "unknown"
-
-
 def _client_for_provider_mode(
     provider_mode: str,
     user_provider: str = "",
     user_base_url: str = "",
     user_model: str = "",
     user_api_key: str = "",
-    user_timeout: int = 25,
-    user_max_retries: int = 0,
+    user_timeout: int = 45,
+    user_max_retries: int = 1,
 ):
     normalized = provider_mode.strip().lower()
     if normalized == "mock":
@@ -462,7 +420,7 @@ def _client_for_provider_mode(
             model=(user_model or "configured-model").strip(),
             base_url=(user_base_url or "").strip() or None,
             api_key=(user_api_key or "").strip(),
-            timeout=_bounded_int(user_timeout, 25, minimum=1, maximum=300),
+            timeout=_bounded_int(user_timeout, 45, minimum=1, maximum=300),
             max_retries=_bounded_int(user_max_retries, 0, minimum=0, maximum=3),
         )
         return client_from_settings(settings)
@@ -477,8 +435,8 @@ def _traced_client_for_provider_mode(
     user_base_url: str = "",
     user_model: str = "",
     user_api_key: str = "",
-    user_timeout: int = 25,
-    user_max_retries: int = 0,
+    user_timeout: int = 45,
+    user_max_retries: int = 1,
 ) -> tuple[TracingLLMClient, TracingLLMClient]:
     normalized = provider_mode.strip().lower()
     client = _client_for_provider_mode(

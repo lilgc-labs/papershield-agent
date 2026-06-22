@@ -227,6 +227,28 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(payload["workflow"]["steps"][0]["label"], "解析文档")
         self.assertEqual(payload["workflow"]["backend_label"] in {"LangGraph 编排", "本地简化编排"}, True)
 
+    def test_analysis_only_external_failure_uses_fallback_summary_without_crashing(self):
+        original = "\u6b64\u5916\uff0c\u6570\u636e\u5b89\u5168\u95ee\u9898\u9700\u8981\u5b8c\u5584[1]\u3002"
+        llm = FakeLLM(fail=True)
+
+        state = optimize_text(
+            original,
+            domain="law",
+            llm_client=llm,
+            analysis_only=True,
+            external_call_required=True,
+        )
+        payload = build_report_dict(state)
+
+        self.assertTrue(state.analysis_only)
+        self.assertEqual(state.processed_paragraphs[0].status, "analysis_only")
+        self.assertIn("document analysis failed", state.warnings[0])
+        self.assertIn("document analysis failed", state.processed_paragraphs[0].warnings[0])
+        self.assertTrue(state.analysis_summary["issues"])
+        self.assertTrue(payload["provider_error"]["failed"])
+        self.assertFalse(payload["provider_error"]["all_fallback"])
+        self.assertIn(original, state.final_text)
+
 
 if __name__ == "__main__":
     unittest.main()

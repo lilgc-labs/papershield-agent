@@ -55,7 +55,7 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["status"], "ok")
-        self.assertEqual(payload["version"], "1.16")
+        self.assertEqual(payload["version"], "1.17")
         self.assertEqual(payload["prompt_profile"], "research_writing_zh_word_v1")
         self.assertIn(payload["provider"], {"openai", "mock", "anthropic"})
         self.assertEqual(payload["compliance_mode"], "local-demo")
@@ -119,8 +119,8 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(payload["model"], "demo-model")
         self.assertTrue(payload["configured"])
         self.assertTrue(payload["api_key_present"])
-        self.assertEqual(payload["timeout"], 25)
-        self.assertEqual(payload["max_retries"], 0)
+        self.assertEqual(payload["timeout"], 45)
+        self.assertEqual(payload["max_retries"], 1)
         self.assertNotIn("secret-value", response.text)
 
     def test_provider_presets_include_mainland_and_global_models(self):
@@ -362,7 +362,7 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(denied.status_code, 400)
         self.assertIn("Hosted model is not configured", denied.json()["detail"])
 
-    def test_hosted_model_call_requires_login_and_enforces_free_limit(self):
+    def test_hosted_model_call_requires_login_and_allows_repeated_runs_without_free_limit(self):
         env = {
             "PAPERSHIELD_PROVIDER_CONFIG_PATH": self.config_path,
             "PAPERSHIELD_ADMIN_TOKEN": "trusted-secret",
@@ -370,7 +370,6 @@ class WebAppTests(unittest.TestCase):
             "PAPERSHIELD_LLM_BASE_URL": "https://provider.example.com/v1",
             "PAPERSHIELD_LLM_MODEL": "hosted-demo-model",
             "PAPERSHIELD_API_KEY": "hosted-secret",
-            "PAPERSHIELD_HOSTED_FREE_RUN_LIMIT": "1",
         }
         calls = []
 
@@ -395,28 +394,28 @@ class WebAppTests(unittest.TestCase):
                     headers={"X-PaperShield-Admin-Token": "trusted-secret"},
                     data={"text": HOSTED_SAMPLE_TEXT, "domain": "law", "provider_mode": "hosted"},
                 )
-            second = client.post(
-                "/api/optimize",
-                headers={"X-PaperShield-Admin-Token": "trusted-secret"},
-                data={"text": HOSTED_SAMPLE_TEXT, "domain": "law", "provider_mode": "hosted"},
-            )
+                second = client.post(
+                    "/api/optimize",
+                    headers={"X-PaperShield-Admin-Token": "trusted-secret"},
+                    data={"text": HOSTED_SAMPLE_TEXT, "domain": "law", "provider_mode": "hosted"},
+                )
 
         self.assertTrue(policy["hosted_model_enabled"])
+        self.assertEqual(policy["hosted_free_run_limit"], 0)
         self.assertEqual(denied.status_code, 403)
         self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(second.status_code, 200, second.text)
         payload = first.json()
-        self.assertEqual(payload["hosted_usage"]["remaining"], 0)
+        self.assertNotIn("hosted_usage", payload)
         self.assertEqual(payload["provider_trace"]["mode"], "hosted")
         self.assertEqual(payload["provider_trace"]["provider"], "openai-compatible")
         self.assertEqual(payload["provider_trace"]["model"], "hosted-demo-model")
         self.assertGreater(payload["provider_trace"]["call_count"], 0)
         self.assertEqual(calls[0]["payload"]["model"], "hosted-demo-model")
         self.assertEqual(calls[0]["authorization"], "Bearer hosted-secret")
-        self.assertEqual(second.status_code, 429)
-        self.assertIn("free hosted model", second.json()["detail"].lower())
-        self.assertEqual(policy["hosted_free_run_limit"], 1)
+        self.assertGreaterEqual(len(calls), 2)
 
-    def test_hosted_free_limit_is_scoped_to_browser_client_id(self):
+    def test_hosted_runs_are_not_scoped_to_browser_client_id_limits(self):
         env = {
             "PAPERSHIELD_PROVIDER_CONFIG_PATH": self.config_path,
             "PAPERSHIELD_ADMIN_TOKEN": "trusted-secret",
@@ -424,7 +423,6 @@ class WebAppTests(unittest.TestCase):
             "PAPERSHIELD_LLM_BASE_URL": "https://provider.example.com/v1",
             "PAPERSHIELD_LLM_MODEL": "hosted-demo-model",
             "PAPERSHIELD_API_KEY": "hosted-secret",
-            "PAPERSHIELD_HOSTED_FREE_RUN_LIMIT": "1",
         }
         form = {"text": HOSTED_SAMPLE_TEXT, "domain": "law", "provider_mode": "hosted"}
 
@@ -461,9 +459,11 @@ class WebAppTests(unittest.TestCase):
                 )
 
         self.assertEqual(first.status_code, 200, first.text)
-        self.assertEqual(second_same_browser.status_code, 429)
+        self.assertEqual(second_same_browser.status_code, 200, second_same_browser.text)
         self.assertEqual(first_other_browser.status_code, 200, first_other_browser.text)
-        self.assertEqual(first_other_browser.json()["hosted_usage"]["remaining"], 0)
+        self.assertNotIn("hosted_usage", first.json())
+        self.assertNotIn("hosted_usage", second_same_browser.json())
+        self.assertNotIn("hosted_usage", first_other_browser.json())
 
     def test_user_provider_mode_uses_request_scoped_settings_without_hosted_quota(self):
         env = {
@@ -715,8 +715,8 @@ class WebAppTests(unittest.TestCase):
 
         self.assertEqual(status["provider"], "openai-compatible")
         self.assertEqual(status["model"], "qwen-plus")
-        self.assertEqual(status["timeout"], 25)
-        self.assertEqual(status["max_retries"], 0)
+        self.assertEqual(status["timeout"], 45)
+        self.assertEqual(status["max_retries"], 1)
         self.assertFalse(status["api_key_present"])
         self.assertNotIn("env-secret", response.text)
 
@@ -742,7 +742,7 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("Missing API key", response.json()["detail"])
         self.assertNotIn("gemini-key", response.text)
 
-    def test_optimize_external_provider_failure_returns_json_error_without_fallback_result(self):
+    def test_optimize_external_provider_failure_returns_report_with_fallback_result(self):
         original = "此外，数据安全问题需要完善[1]。"
         with patch.dict(os.environ, {"PAPERSHIELD_PROVIDER_CONFIG_PATH": self.config_path}, clear=True):
             reset_provider_runtime_for_tests()
@@ -776,10 +776,13 @@ class WebAppTests(unittest.TestCase):
                     },
                 )
 
-        self.assertEqual(response.status_code, 502, response.text)
+        self.assertEqual(response.status_code, 200, response.text)
         self.assertIn("application/json", response.headers["content-type"])
         payload = response.json()
-        self.assertEqual(payload["error"], "external_model_failed")
+        self.assertEqual(payload["final_text"], original)
+        self.assertEqual(payload["paragraphs"][0]["status"], "fallback")
+        self.assertTrue(payload["provider_error"]["failed"])
+        self.assertTrue(payload["provider_error"]["all_fallback"])
         self.assertIn("provider_trace", payload)
         self.assertEqual(payload["provider_trace"]["mode"], "user")
         self.assertTrue(payload["provider_trace"]["external_call_required"])
@@ -787,10 +790,9 @@ class WebAppTests(unittest.TestCase):
         self.assertGreater(payload["provider_trace"]["call_count"], 0)
         self.assertEqual(payload["provider_trace"]["status"], "failed")
         self.assertTrue(payload["provider_trace"]["errors"])
-        self.assertNotIn("final_text", payload)
         self.assertNotIn("runtime-secret", response.text)
 
-    def test_optimize_external_provider_empty_response_returns_json_error(self):
+    def test_optimize_external_provider_empty_response_returns_report_with_provider_error(self):
         original = "此外，数据安全问题需要完善[1]。"
         with patch.dict(os.environ, {"PAPERSHIELD_PROVIDER_CONFIG_PATH": self.config_path}, clear=True):
             reset_provider_runtime_for_tests()
@@ -824,12 +826,48 @@ class WebAppTests(unittest.TestCase):
                     },
                 )
 
-        self.assertEqual(response.status_code, 502, response.text)
+        self.assertEqual(response.status_code, 200, response.text)
         payload = response.json()
-        self.assertEqual(payload["error"], "external_model_failed")
+        self.assertEqual(payload["final_text"], original)
+        self.assertEqual(payload["paragraphs"][0]["status"], "fallback")
+        self.assertTrue(payload["provider_error"]["failed"])
         self.assertEqual(payload["provider_trace"]["status"], "failed")
         self.assertIn("empty response body", " ".join(payload["provider_trace"]["errors"]).lower())
-        self.assertNotIn("final_text", payload)
+
+    def test_optimize_analysis_only_external_provider_failure_returns_fallback_summary(self):
+        original = "此外，数据安全问题需要完善[1]。"
+        with patch.dict(os.environ, {"PAPERSHIELD_PROVIDER_CONFIG_PATH": self.config_path}, clear=True):
+            reset_provider_runtime_for_tests()
+            client = TestClient(create_app())
+            with patch("urllib.request.urlopen", return_value=RawProviderResponse(b"")):
+                response = client.post(
+                    "/api/optimize",
+                    data={
+                        "text": original,
+                        "domain": "law",
+                        "analysis_only": "true",
+                        "provider_mode": "user",
+                        "user_provider": "openai-compatible",
+                        "user_base_url": "https://provider.example.com/v1",
+                        "user_model": "empty-body-model",
+                        "user_api_key": "runtime-secret",
+                        "user_timeout": "1",
+                        "user_max_retries": "0",
+                    },
+                )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertTrue(payload["analysis_only"])
+        self.assertEqual(payload["final_text"], original)
+        self.assertEqual(payload["paragraphs"][0]["status"], "analysis_only")
+        self.assertIn("analysis_summary", payload)
+        self.assertTrue(payload["analysis_summary"]["issues"])
+        self.assertTrue(payload["provider_error"]["failed"])
+        self.assertFalse(payload["provider_error"]["all_fallback"])
+        self.assertEqual(payload["provider_trace"]["status"], "failed")
+        self.assertIn("empty response body", " ".join(payload["provider_trace"]["errors"]).lower())
+        self.assertNotIn("runtime-secret", response.text)
 
     def test_optimize_workflow_exception_returns_json_error(self):
         original = "此外，数据安全问题需要完善[1]。"
@@ -1080,8 +1118,8 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("导出 Word", html)
         self.assertIn("PaperShield 学术稿件智能审阅平台", html)
         self.assertIn('rel="icon"', html)
-        self.assertIn("/static/styles.css?v=1.16", html)
-        self.assertIn("/static/app.js?v=1.16", html)
+        self.assertIn("/static/styles.css?v=1.17", html)
+        self.assertIn("/static/app.js?v=1.17", html)
         self.assertIn("面向一般社科领域", html)
         self.assertIn("论证清晰度、表达自然度、术语一致性与引文可核查性", html)
         self.assertIn("一般社科", html)
@@ -1220,13 +1258,6 @@ class WebAppTests(unittest.TestCase):
             'formData.set("user_base_url"',
             'formData.set("user_model"',
             'formData.set("user_api_key"',
-            "hostedUsage",
-            "hostedRunLimit",
-            "hostedRunRemaining",
-            "payload.hosted_usage",
-            "updateHostedUsage",
-            "HOSTED_CLIENT_ID_STORAGE_KEY",
-            "X-PaperShield-Client-Id",
             "hostedAccessAuthenticated",
             "payload.hosted_access_authenticated",
             "providerControlAuthenticated",
@@ -1237,6 +1268,15 @@ class WebAppTests(unittest.TestCase):
             'mode === "user"',
         ]:
             self.assertIn(expected, script)
+        self.assertIn("托管额度不限次数", script)
+        self.assertNotIn("hostedUsage", script)
+        self.assertNotIn("hostedRunLimit", script)
+        self.assertNotIn("hostedRunRemaining", script)
+        self.assertNotIn("payload.hosted_usage", script)
+        self.assertNotIn("updateHostedUsage", script)
+        self.assertNotIn("HOSTED_CLIENT_ID_STORAGE_KEY", script)
+        self.assertNotIn("X-PaperShield-Client-Id", script)
+        self.assertNotIn("托管额度剩余", script)
 
     def test_static_javascript_surfaces_runtime_policy(self):
         response = self.client.get("/static/app.js")
@@ -1251,7 +1291,7 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("公开演示模式已锁定模型配置", script)
         self.assertIn("请先输入访问密匙并登录", script)
         self.assertIn("hosted_model_enabled", script)
-        self.assertIn("hosted_free_run_limit", script)
+        self.assertNotIn("hosted_free_run_limit", script)
         self.assertIn("hostedModelAvailable", script)
         self.assertIn("authControlsEnabled", script)
         self.assertIn("hostedEnabled || policy.provider_control_token_required", script)

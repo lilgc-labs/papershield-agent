@@ -48,8 +48,8 @@ Render 或 Railway 部署要点：
 - 暴露 `8000` 端口，Render 可通过平台提供的 `PORT` 环境变量启动。
 - 使用 `/healthz` 作为健康检查路径。
 - 公开演示可保持 `PAPERSHIELD_LLM_PROVIDER=mock`，不消耗任何模型额度。
-- 若要给可信用户提供托管免费额度，设置 `PAPERSHIELD_PROVIDER_CONFIG_ENABLED=1`、`PAPERSHIELD_ADMIN_TOKEN` 和你的模型环境变量；用户登录访问密匙后会使用站点预设模型。可另设 `PAPERSHIELD_CONFIG_ADMIN_TOKEN`，只允许站长修改站点默认模型。
-- 默认每个浏览器客户端可使用 `PAPERSHIELD_HOSTED_FREE_RUN_LIMIT=3` 次托管润色；用户也可以切换到“自备模型参数”，只用自己的 API key 和额度。
+- 若要给可信用户提供托管模型额度，设置 `PAPERSHIELD_PROVIDER_CONFIG_ENABLED=1`、`PAPERSHIELD_ADMIN_TOKEN` 和你的模型环境变量；用户登录访问密匙后会使用站点预设模型。可另设 `PAPERSHIELD_CONFIG_ADMIN_TOKEN`，只允许站长修改站点默认模型。
+- 托管模式不再按浏览器客户端限制本地运行次数；`PAPERSHIELD_HOSTED_FREE_RUN_LIMIT=0` 表示不限本地次数，实际可用性取决于站点模型账号的额度、限流和服务稳定性。用户也可以切换到“自备模型参数”，只用自己的 API key 和额度。
 - Render 这类公网环境未设置 `PAPERSHIELD_ADMIN_TOKEN` 时，模型配置区会自动保持锁定。
 - 不要把真实 API key 或访问口令提交到 GitHub。
 
@@ -83,7 +83,7 @@ Web 工作台支持粘贴文本、上传 `.txt` 和基础 `.docx`，主要能力
 - 基于 `document_blocks` 的结构保留式最终稿合并；
 - Markdown、HTML 和 Word 报告导出。
 
-首次打开网站时会显示“用户须知”弹窗，确认后才进入工作台。若部署配置了 `PAPERSHIELD_ADMIN_TOKEN`，可信用户在“模型与运行环境”面板输入访问密匙后，可使用站点预设的托管模型额度；默认每个浏览器客户端 3 次，可通过 `PAPERSHIELD_HOSTED_FREE_RUN_LIMIT` 调整。用户也可以随时切换到“自备模型参数”，填写自己的服务地址、模型名和 API key；这类请求只在本次调用使用用户参数，不消耗站点托管额度。
+首次打开网站时会显示“用户须知”弹窗，确认后才进入工作台。若部署配置了 `PAPERSHIELD_ADMIN_TOKEN`，可信用户在“模型与运行环境”面板输入访问密匙后，可使用站点预设的托管模型额度；本地不再额外限制托管运行次数。用户也可以随时切换到“自备模型参数”，填写自己的服务地址、模型名和 API key；这类请求只在本次调用使用用户参数，不消耗站点托管额度。
 
 ## 架构
 
@@ -116,11 +116,11 @@ Web 工作台支持粘贴文本、上传 `.txt` 和基础 `.docx`，主要能力
 - `PAPERSHIELD_ADMIN_TOKEN`，可信用户访问密匙，用于登录托管免费额度
 - `PAPERSHIELD_CONFIG_ADMIN_TOKEN`，可选站点配置管理员密匙；设置后，只有它能保存站点默认模型配置，`PAPERSHIELD_ADMIN_TOKEN` 只用于用户托管额度
 - `PAPERSHIELD_REQUIRE_ADMIN_TOKEN_FOR_PROVIDER_USE=0|1`，私有部署可设为 `0`，让用户免登录直接运行已配置的外部模型
-- `PAPERSHIELD_HOSTED_FREE_RUN_LIMIT`，可信用户每个浏览器客户端可使用的托管免费润色次数，默认 `3`
+- `PAPERSHIELD_HOSTED_FREE_RUN_LIMIT`，保留为部署策略字段；当前默认 `0`，表示不按浏览器客户端限制托管运行次数
 - `PAPERSHIELD_MAX_UPLOAD_BYTES`、`PAPERSHIELD_MAX_TEXT_CHARS`、`PAPERSHIELD_MAX_PARAGRAPHS`
 - `PAPERSHIELD_OPTIMIZE_RATE_LIMIT_PER_MINUTE`、`PAPERSHIELD_PROVIDER_RATE_LIMIT_PER_MINUTE`
 
-公开演示可以保持 `mock`。真实模型适合私有运行，或在设置访问密匙后作为托管免费额度开放给可信用户。自备模型参数模式会使用用户本次填写的 key 和模型配置。模型服务地址必须使用 HTTPS，并会阻止 localhost、私有地址、链路本地地址、多播地址和云元数据地址。
+公开演示可以保持 `mock`。真实模型适合私有运行，或在设置访问密匙后作为托管模型额度开放给可信用户。自备模型参数模式会使用用户本次填写的 key 和模型配置。模型服务地址必须使用 HTTPS，并会阻止 localhost、私有地址、链路本地地址、多播地址和云元数据地址。
 
 提示词方案：
 
