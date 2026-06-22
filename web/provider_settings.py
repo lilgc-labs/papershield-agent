@@ -14,8 +14,8 @@ from web.security import provider_config_enabled, validate_provider_base_url
 APP_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = APP_ROOT / "config" / "provider.local.json"
 ALLOWED_PROVIDERS = {"mock", "openai", "anthropic", "openai-compatible", "compatible"}
-HOSTED_MAX_TIMEOUT_SECONDS = 45
-HOSTED_MAX_RETRIES = 1
+HOSTED_MAX_TIMEOUT_SECONDS = 20
+HOSTED_MAX_RETRIES = 0
 
 
 @dataclass
@@ -36,8 +36,8 @@ class WebProviderConfig:
     base_url: str = ""
     model: str = "mock"
     prompt_profile: str = "default"
-    timeout: int = 45
-    max_retries: int = 1
+    timeout: int = 20
+    max_retries: int = 0
 
 
 PRESET_GROUPS = [
@@ -173,8 +173,8 @@ def _config_from_payload(payload: dict[str, Any]) -> WebProviderConfig:
         base_url=base_url,
         model=model,
         prompt_profile=prompt_profile,
-        timeout=_bounded_int(payload.get("timeout"), 45, minimum=1, maximum=HOSTED_MAX_TIMEOUT_SECONDS),
-        max_retries=_bounded_int(payload.get("max_retries"), 1, minimum=1, maximum=HOSTED_MAX_RETRIES),
+        timeout=_bounded_int(payload.get("timeout"), 20, minimum=1, maximum=HOSTED_MAX_TIMEOUT_SECONDS),
+        max_retries=_bounded_int(payload.get("max_retries"), 0, minimum=0, maximum=HOSTED_MAX_RETRIES),
     )
 
 

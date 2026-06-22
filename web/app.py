@@ -47,7 +47,7 @@ from web.security import (
 
 
 WEB_ROOT = Path(__file__).resolve().parent
-APP_VERSION = "1.17"
+APP_VERSION = "1.18"
 
 
 def create_app() -> FastAPI:
@@ -149,8 +149,8 @@ def create_app() -> FastAPI:
         user_base_url: str = Form(default=""),
         user_model: str = Form(default=""),
         user_api_key: str = Form(default=""),
-        user_timeout: int = Form(default=45),
-        user_max_retries: int = Form(default=1),
+        user_timeout: int = Form(default=20),
+        user_max_retries: int = Form(default=0),
     ) -> dict:
         normalized = provider_mode.strip().lower()
         if normalized == "mock":
@@ -223,8 +223,8 @@ def create_app() -> FastAPI:
         user_model: str = Form(default=""),
         user_api_key: str = Form(default=""),
         user_prompt_profile: str = Form(default=""),
-        user_timeout: int = Form(default=45),
-        user_max_retries: int = Form(default=1),
+        user_timeout: int = Form(default=20),
+        user_max_retries: int = Form(default=0),
         file: UploadFile | None = File(default=None),
     ) -> dict:
         _enforce_rate_limit(request, rate_limiter, "optimize")
@@ -406,8 +406,8 @@ def _client_for_provider_mode(
     user_base_url: str = "",
     user_model: str = "",
     user_api_key: str = "",
-    user_timeout: int = 45,
-    user_max_retries: int = 1,
+    user_timeout: int = 20,
+    user_max_retries: int = 0,
 ):
     normalized = provider_mode.strip().lower()
     if normalized == "mock":
@@ -420,7 +420,7 @@ def _client_for_provider_mode(
             model=(user_model or "configured-model").strip(),
             base_url=(user_base_url or "").strip() or None,
             api_key=(user_api_key or "").strip(),
-            timeout=_bounded_int(user_timeout, 45, minimum=1, maximum=300),
+            timeout=_bounded_int(user_timeout, 20, minimum=1, maximum=300),
             max_retries=_bounded_int(user_max_retries, 0, minimum=0, maximum=3),
         )
         return client_from_settings(settings)
@@ -435,8 +435,8 @@ def _traced_client_for_provider_mode(
     user_base_url: str = "",
     user_model: str = "",
     user_api_key: str = "",
-    user_timeout: int = 45,
-    user_max_retries: int = 1,
+    user_timeout: int = 20,
+    user_max_retries: int = 0,
 ) -> tuple[TracingLLMClient, TracingLLMClient]:
     normalized = provider_mode.strip().lower()
     client = _client_for_provider_mode(

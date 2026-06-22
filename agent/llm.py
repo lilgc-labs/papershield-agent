@@ -24,8 +24,8 @@ class LLMSettings:
     base_url: str | None = None
     api_key: str | None = None
     temperature: float = 0.2
-    timeout: int = 45
-    max_retries: int = 1
+    timeout: int = 20
+    max_retries: int = 0
 
 
 class ProviderConfigError(RuntimeError):
@@ -179,6 +179,7 @@ class OpenAICompatibleClient:
             "messages": messages,
             "temperature": self.settings.temperature,
         }
+        payload.update(_openai_compatible_provider_options(self.settings, self.base_url))
         return _with_retries(
             lambda: _post_chat_completion(
                 _build_json_request(
@@ -266,6 +267,16 @@ def _extract_chat_message_content(choice: dict) -> str:
     return text.strip() if isinstance(text, str) else ""
 
 
+def _openai_compatible_provider_options(settings: LLMSettings, base_url: str) -> dict:
+    parsed = urlparse(base_url)
+    host = (parsed.hostname or "").lower()
+    model = settings.model.strip().lower()
+    if host == "api.deepseek.com" and model.startswith("deepseek-v4"):
+        # DeepSeek V4 defaults to thinking mode; PaperShield rewrite calls need fast plain text.
+        return {"thinking": {"type": "disabled"}}
+    return {}
+
+
 def _post_json(request: urllib.request.Request, timeout: int) -> dict:
     try:
         # Provider URLs are HTTPS-only and private hosts are rejected before request construction.
@@ -351,8 +362,8 @@ def settings_from_env() -> LLMSettings:
         model=model,
         base_url=base_url,
         api_key=api_key,
-        timeout=_env_int("PAPERSHIELD_LLM_TIMEOUT", 45),
-        max_retries=_env_int("PAPERSHIELD_LLM_MAX_RETRIES", 1),
+        timeout=_env_int("PAPERSHIELD_LLM_TIMEOUT", 20),
+        max_retries=_env_int("PAPERSHIELD_LLM_MAX_RETRIES", 0),
     )
 
 

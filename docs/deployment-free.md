@@ -42,13 +42,13 @@ PAPERSHIELD_ADMIN_TOKEN=<你自己设置的访问口令>
 PAPERSHIELD_CONFIG_ADMIN_TOKEN=<站点配置管理员口令>
 PAPERSHIELD_REQUIRE_ADMIN_TOKEN_FOR_PROVIDER_USE=1
 PAPERSHIELD_HOSTED_FREE_RUN_LIMIT=0
-PAPERSHIELD_LLM_TIMEOUT=45
-PAPERSHIELD_LLM_MAX_RETRIES=1
+PAPERSHIELD_LLM_TIMEOUT=20
+PAPERSHIELD_LLM_MAX_RETRIES=0
 PAPERSHIELD_PROMPT_PROFILE=default
 ```
 
 3. 保存后触发一次 `Manual Deploy`，或推送一个新提交到 GitHub 触发自动部署。
-4. 部署完成后访问 `/healthz`，确认 `provider` 不是 `mock`；再访问 `/api/provider/status`，确认 `configured=true`、`timeout=45`、`max_retries=1`。
+4. 部署完成后访问 `/healthz`，确认 `provider` 不是 `mock`；再访问 `/api/provider/status`，确认 `configured=true`、`timeout=20`、`max_retries=0`。
 5. 再访问 `/api/runtime/policy`，确认 `provider_config_enabled` 为 `true`，`admin_token_required` 为 `true`，`hosted_model_enabled` 为 `true`，`hosted_free_run_limit` 为 `0`。
 
 `PAPERSHIELD_ADMIN_TOKEN` 是网页登录托管模型额度的访问密匙。它不是模型 API key，不要写进 README、代码或提交记录。`PAPERSHIELD_CONFIG_ADMIN_TOKEN` 是可选的站点配置管理员密匙；设置后，可信用户拿到的访问密匙只能使用托管额度，不能保存或覆盖你的站点默认模型参数。Render 公网环境中，如果没有设置访问密匙，后端会自动锁定模型配置区，即使 `PAPERSHIELD_PROVIDER_CONFIG_ENABLED=1` 也不会开放配置接口。`PAPERSHIELD_HOSTED_FREE_RUN_LIMIT=0` 表示后端不按浏览器客户端限制托管运行次数；实际可用性仍取决于你的模型服务额度、限流和高峰稳定性。自备模型参数模式不消耗站点托管额度。
@@ -78,9 +78,11 @@ PAPERSHIELD_PROVIDER_CONFIG_ENABLED=1
 PAPERSHIELD_ADMIN_TOKEN=<在平台环境变量中设置>
 PAPERSHIELD_CONFIG_ADMIN_TOKEN=<站长专用，建议不同于访问密匙>
 PAPERSHIELD_HOSTED_FREE_RUN_LIMIT=0
-PAPERSHIELD_LLM_TIMEOUT=45
-PAPERSHIELD_LLM_MAX_RETRIES=1
+PAPERSHIELD_LLM_TIMEOUT=20
+PAPERSHIELD_LLM_MAX_RETRIES=0
 ```
+
+DeepSeek V4 系列模型默认开启思考模式。PaperShield 对 DeepSeek V4 的 OpenAI-compatible 请求会自动携带 `thinking.type=disabled`，让短文本润色优先走低延迟输出；需要深度推理时应单独配置专用模型链路。
 
 可信用户输入访问密匙后会自动使用这些站点模型参数。用户需要使用自己的额度时，在网页中切换到“自备模型参数”并填写：
 

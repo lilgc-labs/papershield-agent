@@ -599,8 +599,8 @@ function appendUserProviderFormData(formData, mode) {
   formData.set("user_model", providerModelInput.value.trim());
   formData.set("user_api_key", providerApiKeyInput.value.trim());
   formData.set("user_prompt_profile", providerProfileSelect.value || "default");
-  formData.set("user_timeout", providerTimeoutInput.value || "45");
-  formData.set("user_max_retries", providerMaxRetriesInput.value || "1");
+  formData.set("user_timeout", providerTimeoutInput.value || "20");
+  formData.set("user_max_retries", providerMaxRetriesInput.value || "0");
 }
 
 async function readJsonResponse(response, fallbackMessage = "请求失败") {
@@ -730,8 +730,8 @@ function fillProviderForm(config) {
   providerModelInput.value = config.model || "";
   providerApiKeyInput.value = "";
   providerProfileSelect.value = config.prompt_profile || "default";
-  providerTimeoutInput.value = config.timeout || 45;
-  providerMaxRetriesInput.value = Number.isFinite(config.max_retries) ? config.max_retries : 1;
+  providerTimeoutInput.value = config.timeout || 20;
+  providerMaxRetriesInput.value = Number.isFinite(config.max_retries) ? config.max_retries : 0;
   if (!providerModeTouched) {
     providerModeSetting.value = hostedModelAvailable() ? "hosted" : (config.provider === "mock" ? "mock" : "user");
   }
@@ -814,8 +814,8 @@ function readProviderForm() {
       base_url: "",
       model: "mock",
       prompt_profile: providerProfileSelect.value || "default",
-      timeout: toBoundedInt(providerTimeoutInput.value, 45, 1),
-      max_retries: 1,
+      timeout: toBoundedInt(providerTimeoutInput.value, 20, 1),
+      max_retries: 0,
     };
   }
   return {
@@ -824,8 +824,8 @@ function readProviderForm() {
     base_url: providerBaseUrlInput.value.trim(),
     model: providerModelInput.value.trim(),
     prompt_profile: providerProfileSelect.value || "default",
-    timeout: toBoundedInt(providerTimeoutInput.value, 45, 1),
-    max_retries: toBoundedInt(providerMaxRetriesInput.value, 1, 0),
+    timeout: toBoundedInt(providerTimeoutInput.value, 20, 1),
+    max_retries: toBoundedInt(providerMaxRetriesInput.value, 0, 0),
   };
 }
 

@@ -101,6 +101,27 @@ class LLMTests(unittest.TestCase):
         self.assertEqual(result, "ok")
         self.assertEqual(len(calls), 2)
 
+    def test_openai_compatible_client_disables_deepseek_v4_thinking_by_default(self):
+        settings = LLMSettings(
+            provider="openai-compatible",
+            model="deepseek-v4-flash",
+            base_url="https://api.deepseek.com",
+            api_key="key",
+            max_retries=0,
+        )
+        client = OpenAICompatibleClient(settings)
+        payloads = []
+
+        def fake_urlopen(request, timeout):
+            payloads.append(json.loads(request.data.decode("utf-8")))
+            return FakeResponse({"choices": [{"message": {"content": "ok"}}]})
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = client.complete([{"role": "user", "content": "hello"}])
+
+        self.assertEqual(result, "ok")
+        self.assertEqual(payloads[0]["thinking"]["type"], "disabled")
+
     def test_openai_compatible_client_reports_empty_json_response(self):
         settings = LLMSettings(provider="openai", model="demo", api_key="key", max_retries=0)
         client = OpenAICompatibleClient(settings)
@@ -152,8 +173,8 @@ class LLMTests(unittest.TestCase):
         with patch.dict(os.environ, {"PAPERSHIELD_LLM_PROVIDER": "mock"}, clear=True):
             settings = settings_from_env()
 
-        self.assertEqual(settings.timeout, 45)
-        self.assertEqual(settings.max_retries, 1)
+        self.assertEqual(settings.timeout, 20)
+        self.assertEqual(settings.max_retries, 0)
 
 
 if __name__ == "__main__":
