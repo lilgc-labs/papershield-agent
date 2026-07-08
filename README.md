@@ -34,26 +34,6 @@ python -m uvicorn web.app:app --host 127.0.0.1 --port 8000
 
 打开 `http://127.0.0.1:8000` 使用工作台；打开 `http://127.0.0.1:8000/healthz` 验证服务状态。依赖与静态安全检查可在安装 `requirements-dev.txt` 后运行 `.\scripts\security-audit.ps1`。`setup-env.ps1` 只是本地参数化辅助脚本；真实密钥请放在当前 shell、`.env` 或 `setup-env.local.ps1` 中，这些文件已被 Git 忽略。
 
-## Docker 演示
-
-```bash
-docker compose up --build
-```
-
-容器暴露 `8000` 端口，默认使用 `PAPERSHIELD_LLM_PROVIDER=mock`，无需模型密钥，适合公开作品集演示。
-
-Render 或 Railway 部署要点：
-
-- 使用本仓库内置 `Dockerfile` 构建。
-- 暴露 `8000` 端口，Render 可通过平台提供的 `PORT` 环境变量启动。
-- 使用 `/healthz` 作为健康检查路径。
-- 公开演示可保持 `PAPERSHIELD_LLM_PROVIDER=mock`，不消耗任何模型额度。
-- 若要给可信用户提供托管模型额度，设置 `PAPERSHIELD_PROVIDER_CONFIG_ENABLED=1`、`PAPERSHIELD_ADMIN_TOKEN` 和你的模型环境变量；用户登录访问密匙后会使用站点预设模型。可另设 `PAPERSHIELD_CONFIG_ADMIN_TOKEN`，只允许站长修改站点默认模型。
-- 托管模式不再按浏览器客户端限制本地运行次数；`PAPERSHIELD_HOSTED_FREE_RUN_LIMIT=0` 表示不限本地次数，实际可用性取决于站点模型账号的额度、限流和服务稳定性。用户也可以切换到“自备模型参数”，只用自己的 API key 和额度。
-- Render 这类公网环境未设置 `PAPERSHIELD_ADMIN_TOKEN` 时，模型配置区会自动保持锁定。
-- 不要把真实 API key 或访问口令提交到 GitHub。
-
-免费 GitHub 同步部署流程见 `docs/deployment-free.md`。仓库已包含 `render.yaml`，用于 Render Blueprint/Web Service 部署，并开启从 `main` 分支自动重新部署。
 
 ## 命令行
 
