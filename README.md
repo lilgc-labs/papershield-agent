@@ -34,6 +34,8 @@ python -m uvicorn web.app:app --host 127.0.0.1 --port 8000
 
 打开 `http://127.0.0.1:8000` 使用工作台；打开 `http://127.0.0.1:8000/healthz` 验证服务状态。依赖与静态安全检查可在安装 `requirements-dev.txt` 后运行 `.\scripts\security-audit.ps1`。`setup-env.ps1` 只是本地参数化辅助脚本；真实密钥请放在当前 shell、`.env` 或 `setup-env.local.ps1` 中，这些文件已被 Git 忽略。
 
+Docker 与 Render 的配置、健康检查和密钥设置见 [免费部署指南](docs/deployment-free.md)。
+
 
 ## 命令行
 

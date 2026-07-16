@@ -134,18 +134,22 @@ class DeploymentReadinessTests(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         prd = (ROOT / "PaperShield-Agent-PRD-v3.md").read_text(encoding="utf-8")
         demo_script = ROOT / "docs" / "demo-script.md"
+        deployment_guide = ROOT / "docs" / "deployment-free.md"
 
         self.assertTrue(demo_script.exists())
+        self.assertTrue(deployment_guide.exists())
         demo_text = demo_script.read_text(encoding="utf-8")
+        deployment_text = deployment_guide.read_text(encoding="utf-8")
 
         self.assertIn("scripts\\verify.ps1", readme)
-        self.assertIn("docker compose up", readme)
         self.assertIn("工作流轨迹", readme)
         self.assertIn("条件审阅", readme)
         self.assertIn("/healthz", readme)
-        self.assertIn("Render", readme)
-        self.assertIn("Railway", readme)
         self.assertIn("docs/deployment-free.md", readme)
+        self.assertIn("Render", deployment_text)
+        self.assertIn("render.yaml", deployment_text)
+        self.assertIn("Dockerfile", deployment_text)
+        self.assertIn("/healthz", deployment_text)
         self.assertIn("演示可用版", prd)
         self.assertIn("快速上线", prd)
         self.assertNotIn("不支持：`.docx`、Web Demo", prd)
@@ -154,21 +158,13 @@ class DeploymentReadinessTests(unittest.TestCase):
         self.assertIn("工程交付", demo_text)
         self.assertIn("工作流轨迹", demo_text)
 
-    def test_demo_outputs_are_refreshed_for_portfolio_walkthrough(self):
-        out_dir = ROOT / "out"
-        expected = {
-            "demo_law_optimized.txt",
-            "demo_law_report.txt",
-            "demo_law_report.json",
-            "demo_law_report.html",
-            "demo_law_review.md",
-        }
+    def test_portfolio_walkthrough_uses_versioned_demo_source(self):
+        source = ROOT / "examples" / "demo_law.txt"
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
 
-        existing = {path.name for path in out_dir.glob("demo_law_*")}
-        self.assertTrue(expected.issubset(existing))
-
-        for path in out_dir.glob("demo_law_*"):
-            if path.is_file() and path.suffix in {".txt", ".json", ".html", ".md"}:
-                text = path.read_text(encoding="utf-8")
-                self.assertNotIn("问题并不轻", text)
-                self.assertNotIn("status=", text)
+        self.assertTrue(source.exists())
+        self.assertIn("[1]", source.read_text(encoding="utf-8"))
+        self.assertIn("examples\\demo_law.txt", readme)
+        self.assertIn("--report-format all", readme)
+        self.assertIn("out/", gitignore)

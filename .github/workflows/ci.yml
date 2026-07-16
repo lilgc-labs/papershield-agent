@@ -26,7 +26,6 @@ jobs:
       - name: Run tests
         env:
           PAPERSHIELD_LLM_PROVIDER: mock
-          PAPERSHIELD_PROVIDER_CONFIG_ENABLED: "0"
         run: python -m unittest discover -s tests -v
 
       - name: Lint Python
